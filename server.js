@@ -11,7 +11,7 @@ const server = http.createServer(app);
 // Later you can replace "*" with "https://your-username.github.io"
 const io = new Server(server, {
   cors: {
-    origin: "https://anusha-s-game.onrender.com/",
+    origin: "*",
     methods: ["GET", "POST"],
   },
 });
