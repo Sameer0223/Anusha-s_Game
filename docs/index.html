@@ -1,0 +1,969 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Chain Reaction Online</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <style>
+      :root {
+        --rows: 9;
+        --cols: 6;
+        --cell-size: min(60px, 10vw);
+        --player1-color: #ff4b5c;
+        --player2-color: #45aaf2;
+        --bg: #050816;
+        --panel-bg: rgba(15, 23, 42, 0.9);
+        --accent: #22c55e;
+        --border-subtle: rgba(148, 163, 184, 0.5);
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text",
+          "Segoe UI", sans-serif;
+        background: radial-gradient(
+          circle at top,
+          #1e293b 0,
+          #020617 50%,
+          #000 100%
+        );
+        color: #e5e7eb;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 16px;
+      }
+
+      .game-wrapper {
+        width: 100%;
+        max-width: 1100px;
+        display: grid;
+        grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+        gap: 20px;
+        align-items: start;
+      }
+
+      @media (max-width: 900px) {
+        .game-wrapper {
+          grid-template-columns: minmax(0, 1fr);
+        }
+      }
+
+      .card {
+        background: var(--panel-bg);
+        border-radius: 24px;
+        padding: 20px;
+        box-shadow: 0 24px 60px rgba(15, 23, 42, 0.8);
+        border: 1px solid rgba(148, 163, 184, 0.3);
+        backdrop-filter: blur(18px);
+      }
+
+      .board-card {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 16px;
+      }
+
+      .sidebar-card {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+
+      .header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        width: 100%;
+        gap: 12px;
+      }
+
+      .title {
+        font-size: 1.3rem;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .title-badge {
+        width: 10px;
+        height: 10px;
+        border-radius: 999px;
+        background: linear-gradient(
+          130deg,
+          var(--player1-color),
+          var(--player2-color)
+        );
+        box-shadow: 0 0 12px rgba(244, 63, 94, 0.8),
+          0 0 18px rgba(56, 189, 248, 0.8);
+      }
+
+      .button {
+        border: 1px solid rgba(148, 163, 184, 0.6);
+        background: rgba(15, 23, 42, 0.8);
+        color: #e5e7eb;
+        border-radius: 999px;
+        padding: 8px 14px;
+        font-size: 0.85rem;
+        font-weight: 500;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        backdrop-filter: blur(14px);
+        transition: transform 0.12s ease, box-shadow 0.12s ease,
+          background 0.12s ease, border-color 0.12s ease;
+        user-select: none;
+      }
+
+      .button span.icon {
+        font-size: 0.9rem;
+      }
+
+      .button:hover {
+        background: rgba(30, 64, 175, 0.7);
+        border-color: var(--accent);
+        box-shadow: 0 10px 30px rgba(59, 130, 246, 0.45);
+        transform: translateY(-1px);
+      }
+
+      .button:active {
+        transform: translateY(0);
+        box-shadow: none;
+      }
+
+      .button[disabled] {
+        cursor: not-allowed;
+        opacity: 0.6;
+        box-shadow: none;
+        transform: none;
+      }
+
+      .status-bar {
+        width: 100%;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 0.9rem;
+        gap: 8px;
+        padding: 8px 10px;
+        border-radius: 999px;
+        background: radial-gradient(
+            circle at top left,
+            rgba(34, 197, 94, 0.18),
+            transparent
+          ),
+          radial-gradient(
+            circle at bottom right,
+            rgba(59, 130, 246, 0.18),
+            transparent
+          );
+        border: 1px solid rgba(148, 163, 184, 0.65);
+      }
+
+      .turn-indicator {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 4px 10px;
+        border-radius: 999px;
+        background: rgba(15, 23, 42, 0.8);
+      }
+
+      .turn-dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 999px;
+        box-shadow: 0 0 12px rgba(34, 197, 94, 0.9);
+      }
+
+      .turn-dot.player1 {
+        background: var(--player1-color);
+      }
+
+      .turn-dot.player2 {
+        background: var(--player2-color);
+      }
+
+      .turn-label {
+        font-weight: 600;
+      }
+
+      .info-text {
+        opacity: 0.85;
+        font-size: 0.8rem;
+      }
+
+      .board {
+        margin-top: 10px;
+        display: grid;
+        grid-template-rows: repeat(var(--rows), var(--cell-size));
+        grid-template-columns: repeat(var(--cols), var(--cell-size));
+        gap: 5px;
+        padding: 12px;
+        border-radius: 20px;
+        background: radial-gradient(
+          circle at top,
+          rgba(15, 23, 42, 0.9),
+          #020617
+        );
+        border: 1px solid rgba(107, 114, 128, 0.7);
+        box-shadow: 0 20px 60px rgba(15, 23, 42, 0.9);
+        position: relative;
+      }
+
+      .cell {
+        position: relative;
+        border-radius: 16px;
+        border: 1px solid rgba(55, 65, 81, 0.9);
+        background: radial-gradient(
+          circle at 30% 20%,
+          rgba(30, 64, 175, 0.33),
+          #020617
+        );
+        overflow: hidden;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: transform 0.12s ease, box-shadow 0.12s ease,
+          border-color 0.12s ease, background 0.12s ease;
+      }
+
+      .cell::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        background: radial-gradient(
+          circle at top,
+          rgba(255, 255, 255, 0.08),
+          transparent
+        );
+        opacity: 0;
+        transition: opacity 0.12s ease;
+        pointer-events: none;
+      }
+
+      .cell:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 12px 24px rgba(15, 23, 42, 0.9);
+        border-color: rgba(148, 163, 184, 0.9);
+      }
+
+      .cell:hover::after {
+        opacity: 1;
+      }
+
+      .cell.invalid {
+        animation: shake 0.3s;
+        border-color: #f97373;
+      }
+
+      @keyframes shake {
+        0% {
+          transform: translateX(0);
+        }
+        25% {
+          transform: translateX(-2px);
+        }
+        50% {
+          transform: translateX(2px);
+        }
+        75% {
+          transform: translateX(-2px);
+        }
+        100% {
+          transform: translateX(0);
+        }
+      }
+
+      .orb-wrapper {
+        position: relative;
+        width: 70%;
+        height: 70%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .orb {
+        width: 100%;
+        height: 100%;
+        border-radius: 999px;
+        background: radial-gradient(circle at 30% 20%, #fff, #e5e7eb);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 1rem;
+        color: #020617;
+        box-shadow: 0 0 18px rgba(248, 250, 252, 0.8);
+        transform-origin: center;
+        transition: transform 0.1s ease, box-shadow 0.1s ease;
+        position: relative;
+      }
+
+      .orb.player1 {
+        box-shadow: 0 0 18px rgba(248, 113, 113, 0.9);
+        border: 2px solid rgba(248, 113, 113, 0.9);
+      }
+
+      .orb.player2 {
+        box-shadow: 0 0 18px rgba(56, 189, 248, 0.9);
+        border: 2px solid rgba(56, 189, 248, 0.9);
+      }
+
+      .orb-count {
+        position: relative;
+        z-index: 1;
+      }
+
+      .cell.owned-player1 {
+        background: radial-gradient(
+          circle at 30% 20%,
+          rgba(248, 113, 113, 0.18),
+          #020617
+        );
+        border-color: rgba(248, 113, 113, 0.95);
+        box-shadow: 0 0 16px rgba(248, 113, 113, 0.4);
+      }
+
+      .cell.owned-player2 {
+        background: radial-gradient(
+          circle at 30% 20%,
+          rgba(56, 189, 248, 0.18),
+          #020617
+        );
+        border-color: rgba(56, 189, 248, 0.95);
+        box-shadow: 0 0 16px rgba(56, 189, 248, 0.4);
+      }
+
+      .players-panel {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+
+      .player-card {
+        padding: 10px 12px;
+        border-radius: 16px;
+        border: 1px solid var(--border-subtle);
+        background: radial-gradient(
+          circle at top,
+          rgba(15, 23, 42, 0.95),
+          #020617
+        );
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        font-size: 0.82rem;
+      }
+
+      .player-card-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 6px;
+      }
+
+      .player-tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-weight: 600;
+      }
+
+      .player-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 999px;
+        box-shadow: 0 0 12px rgba(248, 113, 113, 0.8);
+      }
+
+      .player-dot.p1 {
+        background: var(--player1-color);
+      }
+
+      .player-dot.p2 {
+        background: var(--player2-color);
+        box-shadow: 0 0 12px rgba(56, 189, 248, 0.8);
+      }
+
+      .player-card.active {
+        border-color: var(--accent);
+        box-shadow: 0 0 18px rgba(34, 197, 94, 0.35);
+      }
+
+      .badge {
+        font-size: 0.65rem;
+        padding: 2px 8px;
+        border-radius: 999px;
+        background: rgba(34, 197, 94, 0.15);
+        border: 1px solid rgba(34, 197, 94, 0.7);
+        color: #bbf7d0;
+      }
+
+      .meta-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .meta-label {
+        opacity: 0.65;
+      }
+
+      .meta-value {
+        font-weight: 600;
+      }
+
+      .subtle-divider {
+        height: 1px;
+        width: 100%;
+        background: linear-gradient(
+          to right,
+          transparent,
+          rgba(148, 163, 184, 0.5),
+          transparent
+        );
+        margin: 4px 0;
+      }
+
+      .help-card {
+        font-size: 0.8rem;
+        border-radius: 16px;
+        padding: 10px 12px;
+        border: 1px dashed rgba(148, 163, 184, 0.7);
+        background: radial-gradient(
+          circle at top,
+          rgba(30, 64, 175, 0.25),
+          #020617
+        );
+      }
+
+      .help-title {
+        font-weight: 600;
+        margin-bottom: 4px;
+      }
+
+      .help-list {
+        list-style: none;
+        display: grid;
+        gap: 2px;
+      }
+
+      .help-list li::before {
+        content: "• ";
+        opacity: 0.8;
+      }
+
+      .game-message {
+        margin-top: 6px;
+        font-size: 0.9rem;
+        min-height: 1.2em;
+        color: #facc15;
+      }
+
+      .game-message.win {
+        color: #4ade80;
+      }
+
+      .game-message.error {
+        color: #fca5a5;
+      }
+
+      .lobby-card {
+        font-size: 0.85rem;
+        border-radius: 16px;
+        padding: 10px 12px;
+        border: 1px solid rgba(148, 163, 184, 0.7);
+        background: radial-gradient(
+          circle at top,
+          rgba(15, 23, 42, 0.9),
+          #020617
+        );
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .lobby-row {
+        display: flex;
+        gap: 8px;
+        margin-top: 4px;
+      }
+
+      .lobby-row input {
+        flex: 1;
+        min-width: 0;
+        padding: 6px 8px;
+        border-radius: 999px;
+        border: 1px solid rgba(148, 163, 184, 0.7);
+        background: rgba(15, 23, 42, 0.9);
+        color: #e5e7eb;
+        font-size: 0.85rem;
+        outline: none;
+      }
+
+      .lobby-row input:focus {
+        border-color: var(--accent);
+      }
+
+      .lobby-label {
+        opacity: 0.75;
+      }
+
+      .lobby-status {
+        font-size: 0.8rem;
+        min-height: 1.1em;
+      }
+
+      .lobby-status.ok {
+        color: #4ade80;
+      }
+
+      .lobby-status.err {
+        color: #fca5a5;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="game-wrapper">
+      <div class="card board-card">
+        <div class="header">
+          <div class="title">
+            <span class="title-badge"></span>
+            Chain Reaction Online
+          </div>
+          <button id="resetLocalBtn" class="button" type="button" disabled>
+            <span class="icon">↻</span>
+            Reset (local only)
+          </button>
+        </div>
+
+        <div class="status-bar">
+          <div class="turn-indicator">
+            <div id="turnDot" class="turn-dot player1"></div>
+            <span id="turnLabel" class="turn-label">Not connected</span>
+          </div>
+          <div class="info-text">
+            Join the same room ID on two devices to play.
+          </div>
+        </div>
+
+        <div id="board" class="board"></div>
+
+        <div id="gameMessage" class="game-message"></div>
+      </div>
+
+      <div class="card sidebar-card">
+        <div class="lobby-card">
+          <div class="help-title">Online lobby</div>
+          <div class="lobby-label">
+            Enter a room ID and your name, then share the room ID with your
+            friend.
+          </div>
+          <div class="lobby-row">
+            <input id="roomInput" placeholder="Room ID (e.g. abc123)" />
+          </div>
+          <div class="lobby-row">
+            <input id="nameInput" placeholder="Your name" />
+            <button id="connectBtn" class="button" type="button">
+              <span class="icon">🌐</span>
+              Connect
+            </button>
+          </div>
+          <div id="lobbyStatus" class="lobby-status"></div>
+        </div>
+
+        <div class="players-panel">
+          <div id="player1Card" class="player-card">
+            <div class="player-card-header">
+              <div class="player-tag">
+                <span class="player-dot p1"></span>
+                <span id="player1Name">Player 1</span>
+              </div>
+              <span id="youBadge1" class="badge" style="display: none"
+                >You</span
+              >
+            </div>
+            <div class="subtle-divider"></div>
+            <div class="meta-row">
+              <span class="meta-label">Color</span>
+              <span class="meta-value" style="color: var(--player1-color)"
+                >Red</span
+              >
+            </div>
+            <div class="meta-row">
+              <span class="meta-label">Orbs</span>
+              <span id="player1Orbs" class="meta-value">0</span>
+            </div>
+          </div>
+          <div id="player2Card" class="player-card">
+            <div class="player-card-header">
+              <div class="player-tag">
+                <span class="player-dot p2"></span>
+                <span id="player2Name">Player 2</span>
+              </div>
+              <span id="youBadge2" class="badge" style="display: none"
+                >You</span
+              >
+            </div>
+            <div class="subtle-divider"></div>
+            <div class="meta-row">
+              <span class="meta-label">Color</span>
+              <span class="meta-value" style="color: var(--player2-color)"
+                >Blue</span
+              >
+            </div>
+            <div class="meta-row">
+              <span class="meta-label">Orbs</span>
+              <span id="player2Orbs" class="meta-value">0</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="help-card">
+          <div class="help-title">How to play</div>
+          <ul class="help-list">
+            <li>Two players join the same room ID.</li>
+            <li>
+              Players take turns adding an orb to any empty cell or their own
+              cell.
+            </li>
+            <li>Cells have a limit: corners 2, edges 3, center 4.</li>
+            <li>
+              When a cell reaches its limit, it explodes and sends orbs to
+              neighbors.
+            </li>
+            <li>Explosions can chain across the board.</li>
+            <li>Capture all opponent orbs to win!</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Socket.IO client from CDN (v4) -->
+    <script
+      src="https://cdn.socket.io/4.7.5/socket.io.min.js"
+      integrity=""
+      crossorigin="anonymous"
+    ></script>
+
+    <script>
+      // TODO: REPLACE this with your real backend URL after deployment
+      const BACKEND_URL = "https://YOUR-BACKEND-URL";
+
+      (function () {
+        let ROWS = 9;
+        let COLS = 6;
+
+        let boardState = [];
+        let cellElements = [];
+        let currentPlayerIndex = 0;
+        let gameOver = false;
+        let movesCount = 0;
+
+        let myPlayerIndex = null;
+        let myName = null;
+        let currentRoomId = null;
+
+        let socket = null;
+
+        const boardEl = document.getElementById("board");
+        const turnLabel = document.getElementById("turnLabel");
+        const turnDot = document.getElementById("turnDot");
+        const gameMessage = document.getElementById("gameMessage");
+
+        const player1Card = document.getElementById("player1Card");
+        const player2Card = document.getElementById("player2Card");
+        const player1Orbs = document.getElementById("player1Orbs");
+        const player2Orbs = document.getElementById("player2Orbs");
+        const player1NameEl = document.getElementById("player1Name");
+        const player2NameEl = document.getElementById("player2Name");
+        const youBadge1 = document.getElementById("youBadge1");
+        const youBadge2 = document.getElementById("youBadge2");
+
+        const roomInput = document.getElementById("roomInput");
+        const nameInput = document.getElementById("nameInput");
+        const connectBtn = document.getElementById("connectBtn");
+        const lobbyStatus = document.getElementById("lobbyStatus");
+
+        function createEmptyBoard() {
+          boardState = new Array(ROWS).fill(null).map(() =>
+            new Array(COLS).fill(null).map(() => ({
+              count: 0,
+              owner: null,
+            }))
+          );
+        }
+
+        function setupBoardUI() {
+          boardEl.style.setProperty("--rows", ROWS);
+          boardEl.style.setProperty("--cols", COLS);
+          boardEl.innerHTML = "";
+          cellElements = new Array(ROWS)
+            .fill(null)
+            .map(() => new Array(COLS).fill(null));
+
+          for (let r = 0; r < ROWS; r++) {
+            for (let c = 0; c < COLS; c++) {
+              const cell = document.createElement("div");
+              cell.className = "cell";
+              cell.dataset.row = r;
+              cell.dataset.col = c;
+
+              cell.addEventListener("click", handleCellClick);
+
+              const orbWrapper = document.createElement("div");
+              orbWrapper.className = "orb-wrapper";
+              cell.appendChild(orbWrapper);
+
+              boardEl.appendChild(cell);
+              cellElements[r][c] = cell;
+            }
+          }
+        }
+
+        function handleCellClick(e) {
+          if (!socket || !currentRoomId) return;
+
+          const cell = e.currentTarget;
+          const row = parseInt(cell.dataset.row, 10);
+          const col = parseInt(cell.dataset.col, 10);
+          socket.emit("make-move", { roomId: currentRoomId, row, col });
+        }
+
+        function updateBoardUI() {
+          let p1Orbs = 0;
+          let p2Orbs = 0;
+
+          for (let r = 0; r < ROWS; r++) {
+            for (let c = 0; c < COLS; c++) {
+              const cell = boardState[r][c];
+              const cellEl = cellElements[r][c];
+              const orbWrapper = cellEl.querySelector(".orb-wrapper");
+              orbWrapper.innerHTML = "";
+
+              cellEl.classList.remove("owned-player1", "owned-player2");
+
+              if (cell.count > 0) {
+                const orb = document.createElement("div");
+                orb.className = "orb";
+
+                if (cell.owner === 0) {
+                  orb.classList.add("player1");
+                  cellEl.classList.add("owned-player1");
+                  p1Orbs += cell.count;
+                } else if (cell.owner === 1) {
+                  orb.classList.add("player2");
+                  cellEl.classList.add("owned-player2");
+                  p2Orbs += cell.count;
+                }
+
+                const countEl = document.createElement("span");
+                countEl.className = "orb-count";
+                countEl.textContent = cell.count;
+                orb.appendChild(countEl);
+                orbWrapper.appendChild(orb);
+              }
+            }
+          }
+
+          player1Orbs.textContent = p1Orbs;
+          player2Orbs.textContent = p2Orbs;
+        }
+
+        function updateTurnUI() {
+          if (!currentRoomId) {
+            turnLabel.textContent = "Not connected";
+            return;
+          }
+
+          const theirTurn = currentPlayerIndex !== myPlayerIndex;
+          const you = myPlayerIndex === null ? "?" : myPlayerIndex + 1;
+          const turnPlayerNumber = currentPlayerIndex + 1;
+
+          if (!gameOver) {
+            if (theirTurn) {
+              turnLabel.textContent = `Player ${turnPlayerNumber}'s turn`;
+            } else {
+              turnLabel.textContent = `Your turn (P${you})`;
+            }
+          }
+
+          turnDot.classList.remove("player1", "player2");
+          if (currentPlayerIndex === 0) {
+            turnDot.classList.add("player1");
+          } else {
+            turnDot.classList.add("player2");
+          }
+
+          player1Card.classList.toggle("active", currentPlayerIndex === 0);
+          player2Card.classList.toggle("active", currentPlayerIndex === 1);
+
+          youBadge1.style.display =
+            myPlayerIndex === 0 ? "inline-block" : "none";
+          youBadge2.style.display =
+            myPlayerIndex === 1 ? "inline-block" : "none";
+        }
+
+        function clearMessage() {
+          gameMessage.textContent = "";
+          gameMessage.classList.remove("win", "error");
+        }
+
+        function showError(message) {
+          gameMessage.textContent = message;
+          gameMessage.classList.remove("win");
+          gameMessage.classList.add("error");
+        }
+
+        function showWinMessage(winnerIndex) {
+          const youWin = winnerIndex === myPlayerIndex;
+          gameMessage.textContent = youWin
+            ? "You win! 🔥"
+            : `Player ${winnerIndex + 1} wins.`;
+          gameMessage.classList.remove("error");
+          gameMessage.classList.add("win");
+        }
+
+        function setLobbyStatus(msg, kind) {
+          lobbyStatus.textContent = msg || "";
+          lobbyStatus.classList.remove("ok", "err");
+          if (kind === "ok") lobbyStatus.classList.add("ok");
+          if (kind === "err") lobbyStatus.classList.add("err");
+        }
+
+        function connectSocketIfNeeded() {
+          if (socket) return socket;
+          socket = io(BACKEND_URL);
+
+          socket.on("connect", () => {
+            console.log("Connected to server");
+          });
+
+          socket.on("join-error", (data) => {
+            setLobbyStatus(data.message, "err");
+          });
+
+          socket.on("joined", (data) => {
+            currentRoomId = data.roomId;
+            myPlayerIndex = data.playerIndex;
+            myName = data.name;
+            ROWS = data.rows;
+            COLS = data.cols;
+
+            boardState = data.state.boardState;
+            currentPlayerIndex = data.state.currentPlayerIndex;
+            gameOver = data.state.gameOver;
+            movesCount = data.state.movesCount;
+
+            setLobbyStatus(
+              `Joined room ${currentRoomId} as Player ${
+                myPlayerIndex + 1
+              }. Waiting for opponent if not connected yet.`,
+              "ok"
+            );
+            clearMessage();
+            updateFromState(data.state);
+            updatePlayerNames(data.state.players);
+          });
+
+          socket.on("room-update", (data) => {
+            updatePlayerNames(data.players);
+          });
+
+          socket.on("state", (state) => {
+            updateFromState(state);
+          });
+
+          socket.on("invalid-move", (data) => {
+            showError(data.message);
+          });
+
+          socket.on("disconnect", () => {
+            setLobbyStatus("Disconnected from server.", "err");
+            turnLabel.textContent = "Disconnected";
+          });
+
+          return socket;
+        }
+
+        function updatePlayerNames(playersArray) {
+          const p1 = playersArray.find((p) => p.index === 0);
+          const p2 = playersArray.find((p) => p.index === 1);
+
+          player1NameEl.textContent = p1 ? p1.name || "Player 1" : "Player 1";
+          player2NameEl.textContent = p2 ? p2.name || "Player 2" : "Player 2";
+        }
+
+        function updateFromState(state) {
+          boardState = state.boardState;
+          currentPlayerIndex = state.currentPlayerIndex;
+          gameOver = state.gameOver;
+          movesCount = state.movesCount;
+
+          clearMessage();
+
+          if (state.gameOver && state.winner !== null) {
+            showWinMessage(state.winner);
+          }
+
+          updateBoardUI();
+          updateTurnUI();
+        }
+
+        function onConnectClick() {
+          const roomId = roomInput.value.trim();
+          const name = nameInput.value.trim() || "Player";
+
+          if (!roomId) {
+            setLobbyStatus("Please enter a room ID.", "err");
+            return;
+          }
+
+          if (!BACKEND_URL || BACKEND_URL.includes("YOUR-BACKEND-URL")) {
+            setLobbyStatus(
+              "BACKEND_URL is not set. Edit index.html first.",
+              "err"
+            );
+            return;
+          }
+
+          const s = connectSocketIfNeeded();
+          s.emit("join-room", { roomId, name });
+          setLobbyStatus("Connecting...", "ok");
+        }
+
+        function init() {
+          createEmptyBoard();
+          setupBoardUI();
+          updateBoardUI();
+          turnLabel.textContent = "Not connected";
+          connectBtn.addEventListener("click", onConnectClick);
+          nameInput.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") onConnectClick();
+          });
+          roomInput.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") onConnectClick();
+          });
+        }
+
+        window.addEventListener("DOMContentLoaded", init);
+      })();
+    </script>
+  </body>
+</html>
